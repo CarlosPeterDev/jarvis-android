@@ -1,17 +1,13 @@
 package ai.openclaw.app.calls
 
 import ai.openclaw.app.NodeApp
+import ai.openclaw.app.gateway.GatewayTlsParams
+import ai.openclaw.app.gateway.buildGatewayTlsConfig
 import android.content.Context
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import java.security.KeyStore
-import java.security.MessageDigest
-import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
 
 /** Separate, Keystore-backed credentials grant only the companion's call API. */
 class CallSettings(
@@ -36,36 +32,7 @@ class CallSettings(
       prefs.putString("jarvis.calls.token", value)
     }
 
-  fun client(): OkHttpClient {
-    val builder = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).connectTimeout(15, TimeUnit.SECONDS)
-    val pin = fingerprint
-    if (pin.isNotEmpty()) {
-      // Explicit trust anchor for this configured endpoint. Date and hostname
-      // checks remain enabled; no permissive HostnameVerifier is installed.
-      val trust =
-        object : X509TrustManager {
-          override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-
-          override fun checkClientTrusted(
-            chain: Array<X509Certificate>,
-            authType: String,
-          ): Unit = throw CertificateException("Client certificates not accepted")
-
-          override fun checkServerTrusted(
-            chain: Array<X509Certificate>,
-            authType: String,
-          ) {
-            val leaf = chain.firstOrNull() ?: throw CertificateException("Missing certificate")
-            leaf.checkValidity()
-            val actual = MessageDigest.getInstance("SHA-256").digest(leaf.encoded).joinToString("") { "%02x".format(it) }
-            if (actual != pin) throw CertificateException("Tablet certificate fingerprint mismatch")
-          }
-        }
-      val tls = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
-      builder.sslSocketFactory(tls.socketFactory, trust)
-    }
-    return builder.build()
-  }
+  fun client(): OkHttpClient = createCallHttpClient(fingerprint)
 
   companion object {
     fun normalizeEndpoint(value: String): String {
@@ -74,4 +41,26 @@ class CallSettings(
       return url.toString().trimEnd('/')
     }
   }
+}
+
+/** Reuse upstream pin/chain validation, retaining OkHttp's hostname verification. */
+internal fun createCallHttpClient(fingerprint: String): OkHttpClient {
+  val builder = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).connectTimeout(15, TimeUnit.SECONDS)
+  if (fingerprint.isNotEmpty()) {
+    val tls = requireNotNull(buildGatewayTlsConfig(GatewayTlsParams(fingerprint)))
+    builder.sslSocketFactory(tls.sslSocketFactory, tls.trustManager)
+    // Upstream's explicit pin is the trust anchor. Also enforce expiry before
+    // sending HTTP authorization; retain the default OkHttp hostname verifier.
+    builder.addNetworkInterceptor { chain ->
+      val leaf =
+        chain
+          .connection()
+          ?.handshake()
+          ?.peerCertificates
+          ?.firstOrNull() as? X509Certificate
+      requireNotNull(leaf) { "Missing tablet certificate" }.checkValidity()
+      chain.proceed(chain.request())
+    }
+  }
+  return builder.build()
 }

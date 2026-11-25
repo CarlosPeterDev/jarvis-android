@@ -8,7 +8,6 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -22,6 +21,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.net.toUri
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -261,6 +261,9 @@ class JarvisCallsActivity : Activity() {
       button("Pair with tablet") {
         if (!save()) return@button
         val pairingCode = code.text.toString()
+        val pairedEndpoint = prefs.endpoint
+        val pairedFingerprint = prefs.fingerprint
+        val pairedClient = prefs.client()
         code.setText("")
         worker.execute {
           val result =
@@ -269,17 +272,24 @@ class JarvisCallsActivity : Activity() {
               val request =
                 Request
                   .Builder()
-                  .url(prefs.endpoint + "/v1/pair")
+                  .url(pairedEndpoint + "/v1/pair")
                   .post(payload.toRequestBody("application/json".toMediaType()))
                   .build()
-              prefs.client().newCall(request).execute().use { response ->
+              pairedClient.newCall(request).execute().use { response ->
                 check(response.isSuccessful)
                 val token = JSONObject(response.body.string()).getString("token")
                 require(token.length >= 40)
-                prefs.token = token
+                token
               }
             }
-          handler.post { notice(if (result.isSuccess) "Paired. Enable Receive calls to connect." else "Pairing failed. Check the code, TLS fingerprint, address and Tailscale connection.") }
+          handler.post {
+            if (result.isSuccess && prefs.endpoint == pairedEndpoint && prefs.fingerprint == pairedFingerprint) {
+              prefs.token = result.getOrThrow()
+              notice("Paired. Enable Receive calls to connect.")
+            } else {
+              notice("Pairing failed or settings changed. Check the code, TLS fingerprint, address and Tailscale connection.")
+            }
+          }
         }
       }
       button("Save & test connection") {
@@ -303,9 +313,9 @@ class JarvisCallsActivity : Activity() {
       }
       button("Call notifications & ringtone") { startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName).putExtra(Settings.EXTRA_CHANNEL_ID, JarvisCallService.CALLS)) }
       button("Allow notifications") { if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 72) }
-      button("Allow Bluetooth audio") { if (Build.VERSION.SDK_INT >= 31) requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 73) }
-      if (Build.VERSION.SDK_INT >= 34) button("Full-screen incoming call access") { startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))) }
-      button("Battery & app settings") { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+      button("Allow Bluetooth audio") { requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 73) }
+      if (Build.VERSION.SDK_INT >= 34) button("Full-screen incoming call access") { startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, "package:$packageName".toUri())) }
+      button("Battery & app settings") { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri())) }
       button("Recent calls") {
         worker.execute {
           val result =

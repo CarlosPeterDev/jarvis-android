@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
@@ -32,4 +32,12 @@ test('call_user: external input has no calling authority; authorized tool waits 
   assert.equal([...service.calls.values()][0].sessionKey, 'agent:main:existing-task');
   ws.send(JSON.stringify({ type: 'decline', callId: call.callId }));
   assert.equal((await result).details.status, 'declined');
+});
+
+test('manifest advertises the runtime tool to the Gateway activation planner', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../../plugin/openclaw.plugin.json', import.meta.url), 'utf8'));
+  const tool = createCallTool({ pluginConfig: {} }, {});
+  assert.ok(manifest.contracts.tools.includes(tool.name));
+  assert.equal(manifest.toolMetadata[tool.name].sideEffecting, true);
+  assert.equal(manifest.toolMetadata[tool.name].replaySafe, false);
 });

@@ -13,7 +13,6 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.RingtoneManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -24,6 +23,7 @@ import android.telecom.DisconnectCause
 import android.telecom.PhoneAccount
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import androidx.core.net.toUri
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.Request
@@ -199,7 +199,7 @@ class JarvisCallService : Service() {
     audio.stop()
     update(if (authFailure) "Connection rejected; check pairing and TLS fingerprint" else "Reconnecting…")
     if (authFailure) {
-      end("Connection rejected")
+      end("Connection rejected; check pairing and TLS fingerprint")
       return
     }
     if (stopped || reconnectPending) return
@@ -249,7 +249,10 @@ class JarvisCallService : Service() {
           outgoing = false
           state.value = CallSnapshot(callId = id, status = "Establishing call")
           try {
-            telecom.placeCall(Uri.parse("jarvis:assistant"), Bundle().apply { putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, account(this@JarvisCallService)) })
+            telecom.placeCall("jarvis:assistant".toUri(), Bundle().apply { putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, account(this@JarvisCallService)) })
+          } catch (_: SecurityException) {
+            hangup()
+            problem("Android denied permission to place this call")
           } catch (_: Exception) {
             hangup()
             problem("Android could not start the call")
