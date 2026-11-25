@@ -302,6 +302,12 @@ class JarvisCallService : Service() {
   }
 
   fun activate() {
+    val runtime = (application as ai.openclaw.app.NodeApp).peekRuntime()
+    if (!state.value.active && runtime != null && !runtime.setJarvisCallAudioActive(true)) {
+      hangup()
+      problem("Microphone is busy in chat or Talk Mode")
+      return
+    }
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
       hangup()
       return
@@ -394,6 +400,7 @@ class JarvisCallService : Service() {
 
   private fun end(reason: String) {
     audio.stop()
+    (application as ai.openclaw.app.NodeApp).peekRuntime()?.setJarvisCallAudioActive(false)
     audio.muted = false
     notifications.cancel(RING_ID)
     val current = connection

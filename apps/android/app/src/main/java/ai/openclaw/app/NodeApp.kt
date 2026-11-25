@@ -71,6 +71,12 @@ class NodeApp : Application() {
       runtimeInstance
         ?: NodeRuntime(this, prefs, initialForeground = initialForeground).also {
           runtimeInstance = it
+          if (ai.openclaw.app.calls.JarvisCallService.snapshot.value.active && !it.setJarvisCallAudioActive(true)) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+              ai.openclaw.app.calls.JarvisCallService.instance
+                ?.hangup()
+            }
+          }
           disconnectIfStopped(it)
         }
     }

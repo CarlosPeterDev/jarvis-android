@@ -43,7 +43,7 @@ class VoiceWakeRuntimeTest {
 
     runtime.setVoiceWakeWords(listOf("hey claw"))
 
-    assertEquals(listOf("openclaw", "claude", "computer"), runtime.voiceWakeWords.value)
+    assertEquals(listOf("jarvis", "openclaw", "claude", "computer"), runtime.voiceWakeWords.value)
     assertEquals("Connect to a Gateway to save wake words", runtime.voiceWakeWordsNoticeText.value)
     assertFalse(runtime.voiceWakeWordsSaving.value)
   }
@@ -174,7 +174,7 @@ class VoiceWakeRuntimeTest {
     invokeNoArg(runtime, "invalidateVoiceWakeWordsForGateway")
     runtime.setVoiceWakeWords(listOf("stale overwrite"))
 
-    assertEquals(listOf("openclaw", "claude", "computer"), runtime.voiceWakeWords.value)
+    assertEquals(listOf("jarvis", "openclaw", "claude", "computer"), runtime.voiceWakeWords.value)
     assertEquals("Connect to a Gateway to save wake words", runtime.voiceWakeWordsNoticeText.value)
   }
 
@@ -297,6 +297,21 @@ class VoiceWakeRuntimeTest {
       assertTrue(shadowOf(recognizer).isDestroyed)
       runtime.releaseVoiceNoteMic()
     }
+
+  @Test
+  fun jarvisCallOwnsTheMicUntilCallCleanup() {
+    val runtime = createTestRuntime()
+    assertTrue(runtime.setJarvisCallAudioActive(true))
+    assertFalse(runtime.tryAcquireVoiceNoteMic())
+    assertFalse(runtime.tryAcquireDictationMic())
+    assertFalse(runtime.setCameraAudioCaptureActive(true))
+    runtime.setTalkModeEnabled(true)
+    assertEquals(VoiceCaptureMode.Off, runtime.voiceCaptureMode.value)
+    assertTrue(runtime.setJarvisCallAudioActive(false))
+    assertTrue(runtime.tryAcquireDictationMic())
+    assertFalse(runtime.setJarvisCallAudioActive(true))
+    runtime.releaseDictationMic()
+  }
 
   private fun createTestRuntime(): NodeRuntime {
     val app = RuntimeEnvironment.getApplication()

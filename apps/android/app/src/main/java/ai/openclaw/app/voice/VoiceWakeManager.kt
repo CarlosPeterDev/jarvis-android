@@ -260,6 +260,7 @@ internal class AndroidOnDeviceVoiceWakeRecognizer(
 }
 
 internal enum class VoiceWakeSuppressionReason {
+  JarvisCall,
   Camera,
   Dictation,
   GatewaySync,

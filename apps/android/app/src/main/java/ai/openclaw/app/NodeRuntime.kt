@@ -1339,6 +1339,7 @@ class NodeRuntime internal constructor(
     VoiceNote(VoiceWakeSuppressionReason.VoiceNote, "MIC_BUSY: voice note recording is active"),
     Dictation(VoiceWakeSuppressionReason.Dictation, "MIC_BUSY: dictation is active"),
     Camera(VoiceWakeSuppressionReason.Camera, "MIC_BUSY: camera audio recording is active"),
+    JarvisCall(VoiceWakeSuppressionReason.JarvisCall, "MIC_BUSY: a Jarvis call is active"),
   }
 
   private val voiceLifecycleEpoch = AtomicLong()
@@ -3556,6 +3557,8 @@ class NodeRuntime internal constructor(
       localMicOwner != null || !isVoiceCaptureModeActive(VoiceCaptureMode.Off)
     }
 
+  internal fun setJarvisCallAudioActive(active: Boolean): Boolean = setLocalMicActive(LocalMicOwner.JarvisCall, active)
+
   internal fun tryAcquireVoiceNoteMic(): Boolean = setLocalMicActive(LocalMicOwner.VoiceNote, true)
 
   internal fun releaseVoiceNoteMic() {
@@ -4164,7 +4167,7 @@ class NodeRuntime internal constructor(
       synchronized(voiceCaptureOwnershipLock) {
         if (active) {
           if (
-            (owner != LocalMicOwner.Camera && gatewayConnectionHandoff.value.pending) ||
+            (owner != LocalMicOwner.Camera && owner != LocalMicOwner.JarvisCall && gatewayConnectionHandoff.value.pending) ||
             localMicOwner != null ||
             !isVoiceCaptureModeActive(VoiceCaptureMode.Off)
           ) {

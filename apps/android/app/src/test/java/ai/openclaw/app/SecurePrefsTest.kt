@@ -131,7 +131,7 @@ class SecurePrefsTest {
     val prefs = testPrefs(context)
 
     assertFalse(prefs.voiceWakeEnabled.value)
-    assertEquals(listOf("openclaw", "claude", "computer"), prefs.voiceWakeWords.value)
+    assertEquals(listOf("jarvis", "openclaw", "claude", "computer"), prefs.voiceWakeWords.value)
 
     prefs.setVoiceWakeEnabled(true)
     prefs.setVoiceWakeWords(listOf(" hey claw ", "computer"))
