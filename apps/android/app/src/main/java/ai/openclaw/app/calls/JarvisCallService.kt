@@ -68,10 +68,13 @@ class JarvisCallService : Service() {
         lockscreenVisibility = Notification.VISIBILITY_PUBLIC
       },
     )
+    // ConnectionService self-managed accounts remain necessary on Android 14.
+    @Suppress("DEPRECATION")
+    val selfManaged = PhoneAccount.CAPABILITY_SELF_MANAGED
     telecom.registerPhoneAccount(
       PhoneAccount
         .builder(account(this), "Jarvis")
-        .setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
+        .setCapabilities(selfManaged)
         .setSupportedUriSchemes(listOf("jarvis"))
         .build(),
     )
@@ -169,10 +172,10 @@ class JarvisCallService : Service() {
 
             override fun onFailure(
               webSocket: WebSocket,
-              error: Throwable,
+              t: Throwable,
               response: Response?,
             ) {
-              handler.post { if (socket === webSocket) disconnected(response?.code == 401 || response?.code == 403) }
+              handler.post { if (socket === webSocket) disconnected(response?.code == 401 || response?.code == 403 || t is javax.net.ssl.SSLHandshakeException || t is javax.net.ssl.SSLPeerUnverifiedException) }
             }
 
             override fun onClosed(

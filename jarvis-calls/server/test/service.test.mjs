@@ -22,6 +22,9 @@ test('pairing is single-use, expires, and does not grant control API access', as
   assert.throws(() => store.pair(fresh, 'replay'));
   assert.equal(store.device(device.token).id, device.id);
   assert.equal(store.device('wrong'), undefined);
+  now += 30 * 86400_000 + 1;
+  assert.equal(store.device(device.token), undefined);
+  assert.equal(store.validDevice(device.id), undefined);
   store.close();
 });
 test('quiet hours wrap midnight in configured time zone', () => {
@@ -45,6 +48,8 @@ test('real socket: authenticate, outgoing audio gate, interrupt, hangup, incomin
   let frame = receive(ws); await once(ws, 'open'); assert.equal((await frame).type, 'ready');
   frame = receive(ws); ws.send(Buffer.from('OggS'.padEnd(100))); assert.equal((await frame).type, 'error');
   frame = receive(ws); ws.send(JSON.stringify({ type: 'outgoing', requestId: 'aabbccdd-0000-0000-0000-000000000000' })); const active = await frame; assert.equal(active.type, 'active');
+  frame = receive(ws); ws.send(JSON.stringify({ type: 'outgoing', requestId: 'aabbccdd-0000-0000-0000-000000000000' }));
+  assert.equal((await frame).callId, active.callId); assert.equal(service.calls.size, 1);
   frame = receive(ws); ws.send(Buffer.from('OggS'.padEnd(100))); assert.equal((await frame).toString(), 'fixture-output');
   // Consume metrics before the next assertion.
   await new Promise(r => setImmediate(r));

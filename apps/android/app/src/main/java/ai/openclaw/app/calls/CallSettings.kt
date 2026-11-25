@@ -1,8 +1,7 @@
 package ai.openclaw.app.calls
 
+import ai.openclaw.app.NodeApp
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import java.security.KeyStore
@@ -18,30 +17,23 @@ import javax.net.ssl.X509TrustManager
 class CallSettings(
   context: Context,
 ) {
-  private val prefs =
-    EncryptedSharedPreferences.create(
-      context,
-      "jarvis_calls",
-      MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-      EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-      EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+  private val prefs = (context.applicationContext as NodeApp).prefs
   var endpoint: String
-    get() = prefs.getString("endpoint", "") ?: ""
+    get() = prefs.getString("jarvis.calls.endpoint") ?: ""
     set(value) {
-      prefs.edit().putString("endpoint", normalizeEndpoint(value)).apply()
+      prefs.putString("jarvis.calls.endpoint", normalizeEndpoint(value))
     }
   var fingerprint: String
-    get() = prefs.getString("fingerprint", "") ?: ""
+    get() = prefs.getString("jarvis.calls.fingerprint") ?: ""
     set(value) {
       val clean = value.replace(":", "").trim().lowercase()
       require(clean.isEmpty() || clean.matches(Regex("[0-9a-f]{64}"))) { "Use a SHA-256 certificate fingerprint" }
-      prefs.edit().putString("fingerprint", clean).apply()
+      prefs.putString("jarvis.calls.fingerprint", clean)
     }
   var token: String
-    get() = prefs.getString("token", "") ?: ""
+    get() = prefs.getString("jarvis.calls.token") ?: ""
     set(value) {
-      prefs.edit().putString("token", value).apply()
+      prefs.putString("jarvis.calls.token", value)
     }
 
   fun client(): OkHttpClient {

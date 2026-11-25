@@ -79,7 +79,6 @@ class JarvisCallsActivity : Activity() {
   }
 
   private fun container(): LinearLayout {
-    window.statusBarColor = Color.rgb(12, 15, 22)
     val column =
       LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
