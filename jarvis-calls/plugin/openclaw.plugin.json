@@ -1,0 +1,9 @@
+{
+  "id": "jarvis-calls",
+  "name": "Jarvis Calls",
+  "description": "Privileged private calls to the paired phone using existing tablet speech and agent sessions.",
+  "configSchema": {
+    "type": "object", "additionalProperties": false,
+    "properties": {"authorizedInternalAgents":{"type":"array","items":{"type":"string"},"default":[]}}
+  }
+}
