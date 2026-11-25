@@ -88,7 +88,7 @@ class JarvisCallsActivity : Activity() {
       }
     setContentView(
       ScrollView(this).apply {
-        fillViewport = true
+        isFillViewport = true
         addView(column)
       },
     )
