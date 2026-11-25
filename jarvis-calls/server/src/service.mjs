@@ -75,7 +75,7 @@ export class CallService {
     if (typeof data.reason !== 'string' || !data.reason.trim() || data.reason.length > 500 || !['normal', 'high'].includes(data.priority)) throw new Error('Invalid invitation');
     if (typeof data.sessionKey !== 'string' || !/^agent:[a-zA-Z0-9_-]+:.{1,200}$/.test(data.sessionKey)) throw new Error('Missing agent session');
     if (typeof data.idempotencyKey !== 'string' || data.idempotencyKey.length > 200) throw new Error('Missing idempotency key');
-    const device = this.store.firstDevice();
+    const device = this.store.devices().find(d => this.phones.has(d.id) && this.store.validDevice(d.id));
     if (!device || !this.phones.has(device.id)) throw new Error('Phone is offline');
     if (!this.store.admit('invite:' + data.idempotencyKey, 86400_000) || !this.store.admit('device:' + device.id, policy.cooldownSeconds * 1000)) throw new Error('Duplicate invitation or cooldown');
     const call = this.create(device.id, 'incoming', data.sessionKey);
@@ -89,7 +89,8 @@ export class CallService {
     this.phones.set(device.id, ws); previous?.close(4001, 'Replaced connection');
     ws.alive = true;
     ws.on('pong', () => { ws.alive = true; });
-    this.emit(device.id, { type: 'ready', protocol: 1 });
+    const current = [...this.calls.values()].find(c => c.device === device.id && !TERMINAL.has(c.state));
+    this.emit(device.id, { type: 'ready', protocol: 1, activeCallId: current?.id || null });
     for (const call of this.calls.values()) {
       if (call.device !== device.id || TERMINAL.has(call.state)) continue;
       call.disconnectedAt = undefined;

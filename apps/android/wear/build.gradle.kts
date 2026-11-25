@@ -62,7 +62,9 @@ android {
     .add(rootProject.file("release-validation/src/main/java").path)
 
   namespace = "ai.openclaw.wear"
-  compileSdk = 37
+  compileSdk {
+    version = release(37) { minorApiLevel = 0 }
+  }
 
   defaultConfig {
     // Data Layer traffic is scoped to matching package names and signatures.

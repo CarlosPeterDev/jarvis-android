@@ -55,7 +55,11 @@ class JarvisCallService : Service() {
     super.onCreate()
     instance = this
     settings = CallSettings(this)
-    audio = CallAudio(this, { bytes -> if (socket?.send(bytes.toByteString()) != true) problem("Audio transport unavailable") }, { problem("Audio unavailable; check microphone and audio route") })
+    audio =
+      CallAudio(this, { bytes -> if (socket?.send(bytes.toByteString()) != true) problem("Audio transport unavailable") }, {
+        hangup()
+        problem("Audio unavailable; check microphone and audio route")
+      })
     notifications.createNotificationChannel(NotificationChannel(PRESENCE, "Jarvis connection", NotificationManager.IMPORTANCE_LOW))
     notifications.createNotificationChannel(
       NotificationChannel(CALLS, "Jarvis calls", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -207,6 +211,7 @@ class JarvisCallService : Service() {
     when (value.getString("type")) {
       "ready" -> {
         ready = true
+        if (state.value.callId != null && value.optString("activeCallId") != state.value.callId) end("Call expired during disconnection")
         retries = 0
         update("Tablet connected")
         if (outgoing) send(JSONObject().put("type", "outgoing").put("requestId", outgoingRequest))
