@@ -44,7 +44,7 @@ test('real socket: authenticate, outgoing audio gate, interrupt, hangup, incomin
   const ws = new WebSocket(url.replace('http:', 'ws:') + '/v1/listen', { headers: { authorization: 'Bearer ' + phone.token } });
   let frame = receive(ws); await once(ws, 'open'); assert.equal((await frame).type, 'ready');
   frame = receive(ws); ws.send(Buffer.from('OggS'.padEnd(100))); assert.equal((await frame).type, 'error');
-  frame = receive(ws); ws.send(JSON.stringify({ type: 'outgoing' })); const active = await frame; assert.equal(active.type, 'active');
+  frame = receive(ws); ws.send(JSON.stringify({ type: 'outgoing', requestId: 'aabbccdd-0000-0000-0000-000000000000' })); const active = await frame; assert.equal(active.type, 'active');
   frame = receive(ws); ws.send(Buffer.from('OggS'.padEnd(100))); assert.equal((await frame).toString(), 'fixture-output');
   // Consume metrics before the next assertion.
   await new Promise(r => setImmediate(r));

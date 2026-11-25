@@ -84,6 +84,7 @@ export class CallService {
     return call;
   }
   connected(device, ws) {
+    ws.deviceId = device.id;
     const previous = this.phones.get(device.id);
     this.phones.set(device.id, ws); previous?.close(4001, 'Replaced connection');
     ws.alive = true;
@@ -107,6 +108,7 @@ export class CallService {
     ws.on('error', () => {});
   }
   async message(device, ws, data, binary) {
+    if (!this.store.validDevice(device.id)) { ws.close(4003, "Pairing expired or revoked"); return; }
     if (binary) {
       const call = [...this.calls.values()].find(c => c.device === device.id && c.state === 'active');
       if (!call || call.turn || data.length < 64 || data.subarray(0, 4).toString() !== 'OggS') throw new Error('Audio not allowed');
@@ -127,8 +129,12 @@ export class CallService {
     if (data.length > 4096) throw new Error('Message too large');
     const message = JSON.parse(data.toString());
     if (message.type === 'outgoing') {
+      if (typeof message.requestId !== 'string' || !/^[a-f0-9-]{36}$/.test(message.requestId)) throw new Error('Missing call request ID');
+      const existing = [...this.calls.values()].find(c => c.device === device.id && c.requestId === message.requestId);
+      if (existing) { this.emit(device.id, { type: 'active', callId: existing.id }); return; }
       if (!this.store.admit('outgoing:' + device.id, 3000)) throw new Error('Call rate limit');
       const call = this.create(device.id, 'outgoing', `agent:${this.config.agentId}:jarvis-call-${randomUUID()}`);
+      call.requestId = message.requestId;
       this.emit(device.id, { type: 'active', callId: call.id }); return;
     }
     const call = this.calls.get(message.callId);
@@ -145,7 +151,7 @@ export class CallService {
   }
   finish(call, outcome) {
     if (TERMINAL.has(call.state)) return;
-    call.state = outcome; call.turn?.abort(); this.store.record(call, outcome);
+    call.state = outcome; call.turn?.abort(); this.store.record(call, outcome); this.store.prune(this.config.policy.historyDays);
     call.resolveInvitation({ callId: call.id, status: outcome });
     this.emit(call.device, { type: 'ended', callId: call.id, outcome });
     this.calls.delete(call.id);
@@ -154,6 +160,7 @@ export class CallService {
   }
   tick() {
     const now = Date.now();
+    for (const [device, ws] of this.phones) if (!this.store.validDevice(device)) ws.close(4003, "Pairing expired or revoked");
     for (const call of this.calls.values()) {
       if (call.state === 'ringing' && now >= call.expires) this.finish(call, 'missed');
       else if (call.disconnectedAt && now - call.disconnectedAt > 20_000) this.finish(call, 'failed');

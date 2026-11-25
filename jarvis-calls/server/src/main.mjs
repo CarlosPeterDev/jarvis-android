@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile, mkdir, writeFile, chmod, access } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { Store } from './store.mjs';
@@ -22,6 +22,7 @@ if (mode === 'init') {
     certificate: join(directory, 'server.crt'), key: join(directory, 'server.key'),
     voiceAdapter: join(homedir(), '.local/lib/openclaw-voice/local-voice.py'),
     agentId: 'main',
+    openclawCommand: [process.execPath, join(dirname(process.execPath), '../lib/node_modules/openclaw/openclaw.mjs')],
     policy: { allowIncoming: false, highPriorityOnly: true, quietHours: { start: 22, end: 8 }, timeZone: 'UTC', ringSeconds: 30, cooldownSeconds: 300, historyDays: 7, telegramFallback: false },
   };
   await writeFile(configPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
@@ -38,6 +39,8 @@ if (mode === 'init') {
   new Intl.DateTimeFormat('en', { timeZone: p.timeZone });
   const store = new Store(join(directory, 'calls.sqlite'));
   if (mode === 'pair') { console.log(store.pairingCode()); store.close(); }
+  else if (mode === 'devices') { console.log(JSON.stringify(store.devices(), null, 2)); store.close(); }
+  else if (mode === 'revoke') { if (!process.argv[3]) throw new Error('Device ID required'); store.revoke(process.argv[3]); store.close(); console.log('Device revoked'); }
   else if (mode === 'serve') {
     const service = new CallService({ config, store, adapters: new LocalAdapters(config), tls: { cert: await readFile(config.certificate), key: await readFile(config.key) } });
     await Promise.all([

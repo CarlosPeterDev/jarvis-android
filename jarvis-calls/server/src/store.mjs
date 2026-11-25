@@ -13,7 +13,7 @@ export class Store {
     this.db = new DatabaseSync(path);
     if (path !== ':memory:') chmodSync(path, 0o600);
     this.db.exec(`PRAGMA journal_mode=WAL;
-      CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT UNIQUE NOT NULL);
+      CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT UNIQUE NOT NULL, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS pairing (hash TEXT PRIMARY KEY, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, device TEXT NOT NULL, direction TEXT NOT NULL, outcome TEXT NOT NULL, created INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS attempts (key TEXT PRIMARY KEY, created INTEGER NOT NULL);`);
@@ -28,11 +28,14 @@ export class Store {
     const consumed = this.db.prepare('DELETE FROM pairing WHERE hash=? AND expires>? RETURNING hash').get(digest(code), this.now());
     if (!consumed) throw new Error('Invalid or expired pairing code');
     const token = randomBytes(32).toString('base64url'), id = randomUUID();
-    this.db.prepare('INSERT INTO devices VALUES (?,?,?)').run(id, name.slice(0, 80), digest(token));
+    this.db.prepare('INSERT INTO devices VALUES (?,?,?,?)').run(id, name.slice(0, 80), digest(token), this.now() + 30 * 86400_000);
     return { id, token };
   }
-  device(token) { return this.db.prepare('SELECT id,name FROM devices WHERE token_hash=?').get(digest(token)); }
-  firstDevice() { return this.db.prepare('SELECT id,name FROM devices ORDER BY rowid LIMIT 1').get(); }
+  device(token) { return this.db.prepare('SELECT id,name FROM devices WHERE token_hash=? AND expires>?').get(digest(token), this.now()); }
+  validDevice(id) { return this.db.prepare('SELECT id FROM devices WHERE id=? AND expires>?').get(id, this.now()); }
+  devices() { return this.db.prepare('SELECT id,name,expires FROM devices ORDER BY rowid').all(); }
+  revoke(id) { this.db.prepare('DELETE FROM devices WHERE id=?').run(id); }
+  firstDevice() { return this.db.prepare('SELECT id,name FROM devices WHERE expires>? ORDER BY rowid LIMIT 1').get(this.now()); }
   record(call, outcome) {
     this.db.prepare('INSERT OR REPLACE INTO history VALUES (?,?,?,?,?)').run(call.id, call.device, call.direction, outcome, call.created);
   }

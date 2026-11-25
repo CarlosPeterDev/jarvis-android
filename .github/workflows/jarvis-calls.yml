@@ -50,6 +50,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
       - run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
       - run: pnpm install --frozen-lockfile
@@ -65,10 +67,10 @@ jobs:
           umask 077
           printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/jarvis-release.jks"
           {
-            printf 'OPENCLAW_ANDROID_STORE_FILE=%s\n' "$RUNNER_TEMP/jarvis-release.jks"
-            printf 'OPENCLAW_ANDROID_STORE_PASSWORD=%s\n' "$STORE_PASSWORD"
-            printf 'OPENCLAW_ANDROID_KEY_ALIAS=%s\n' "$KEY_ALIAS"
-            printf 'OPENCLAW_ANDROID_KEY_PASSWORD=%s\n' "$KEY_PASSWORD"
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_STORE_FILE=%s\n' "$RUNNER_TEMP/jarvis-release.jks"
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_STORE_PASSWORD=%s\n' "$STORE_PASSWORD"
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_KEY_ALIAS=%s\n' "$KEY_ALIAS"
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_KEY_PASSWORD=%s\n' "$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
       - name: Check and test Android
         working-directory: apps/android
