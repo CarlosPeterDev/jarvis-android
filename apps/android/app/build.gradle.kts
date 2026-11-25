@@ -370,7 +370,7 @@ android {
   }
 
   defaultConfig {
-    applicationId = openClawAndroidApplicationId
+    applicationId = "ai.jarvis.calls"
     minSdk = 31
     targetSdk = 36
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

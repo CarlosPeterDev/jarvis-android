@@ -3,7 +3,7 @@ package ai.openclaw.app.voice
 import ai.openclaw.app.takeUtf16Safe
 
 internal object VoiceWakePreferences {
-  val defaultTriggerWords: List<String> = listOf("openclaw", "claude", "computer")
+  val defaultTriggerWords: List<String> = listOf("jarvis", "openclaw", "claude", "computer")
   const val maxWords = 32
   const val maxWordLength = 64
 
