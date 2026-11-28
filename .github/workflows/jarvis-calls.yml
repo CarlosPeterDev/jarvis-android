@@ -4,6 +4,7 @@ on:
     branches: [feat/jarvis-calls]
     tags: ['jarvis-v*']
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: ['apps/android/**', 'jarvis-calls/**', '.github/workflows/jarvis-calls.yml']
   workflow_dispatch:
     inputs:
@@ -18,6 +19,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   service:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +33,7 @@ jobs:
       - run: node --check jarvis-calls/plugin/index.mjs
       - run: bash -n jarvis-calls/scripts/install-termux.sh jarvis-calls/scripts/create-certificate.sh
   android:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     needs: service
     runs-on: ubuntu-latest
     timeout-minutes: 60

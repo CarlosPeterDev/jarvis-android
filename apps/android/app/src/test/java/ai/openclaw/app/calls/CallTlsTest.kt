@@ -67,4 +67,17 @@ class CallTlsTest {
       assertEquals(0, server.requestCount)
     }
   }
+
+  @Test
+  fun expiredPinnedCertificateCannotSendRequests() {
+    val fixture = gatewayTlsTestFixture(validForMillis = -1_000)
+    MockWebServer().use { server ->
+      server.useHttps(fixture.socketFactory, false)
+      server.start()
+      val client = createCallHttpClient(fixture.fingerprint).newBuilder().callTimeout(3, TimeUnit.SECONDS).build()
+      assertThrows(IOException::class.java) { client.newCall(Request.Builder().url(server.url("/")).build()).execute().close() }
+      assertEquals(0, server.requestCount)
+    }
+  }
+
 }

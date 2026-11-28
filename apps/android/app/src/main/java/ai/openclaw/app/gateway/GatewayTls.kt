@@ -40,6 +40,7 @@ import javax.net.ssl.X509TrustManager
 /** A non-null value enables TLS; a null fingerprint selects platform trust. */
 data class GatewayTlsParams(
   val expectedFingerprint: String?,
+  val enforceCertificateValidity: Boolean = false,
 )
 
 /** SSL primitives and accepted route trust installed into OkHttp. */
@@ -273,6 +274,7 @@ internal fun buildGatewayTlsConfig(
         authType: String,
       ) {
         if (chain.isEmpty()) throw CertificateException("empty certificate chain")
+        if (params.enforceCertificateValidity) chain[0].checkValidity()
         val fingerprint = chain[0].sha256Fingerprint()
         if (expectedInput != null) {
           if (expected == null) {

@@ -78,6 +78,7 @@ internal data class GatewayTlsTestFixture(
 internal fun gatewayTlsTestFixture(
   blocklisted: Boolean = false,
   platformTrusted: Boolean = false,
+  validForMillis: Long = 86_400_000,
 ): GatewayTlsTestFixture {
   val keyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
   val subject = X500Name("CN=localhost")
@@ -107,7 +108,7 @@ internal fun gatewayTlsTestFixture(
         setSignature(algorithm)
         setIssuer(issuer)
         setSubject(subject)
-        setValidity(Validity(Time(Date(now - 60_000)), Time(Date(now + 86_400_000))))
+        setValidity(Validity(Time(Date(now - 60_000)), Time(Date(now + validForMillis))))
         setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(keyPair.public.encoded))
         setExtensions(extensions.generate())
       }.generateTBSCertificate()

@@ -6,7 +6,6 @@ import ai.openclaw.app.gateway.buildGatewayTlsConfig
 import android.content.Context
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 
 /** Separate, Keystore-backed credentials grant only the companion's call API. */
@@ -47,20 +46,9 @@ class CallSettings(
 internal fun createCallHttpClient(fingerprint: String): OkHttpClient {
   val builder = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).connectTimeout(15, TimeUnit.SECONDS)
   if (fingerprint.isNotEmpty()) {
-    val tls = requireNotNull(buildGatewayTlsConfig(GatewayTlsParams(fingerprint)))
+    val tls = requireNotNull(buildGatewayTlsConfig(GatewayTlsParams(fingerprint, enforceCertificateValidity = true)))
     builder.sslSocketFactory(tls.sslSocketFactory, tls.trustManager)
-    // Upstream's explicit pin is the trust anchor. Also enforce expiry before
-    // sending HTTP authorization; retain the default OkHttp hostname verifier.
-    builder.addNetworkInterceptor { chain ->
-      val leaf =
-        chain
-          .connection()
-          ?.handshake()
-          ?.peerCertificates
-          ?.firstOrNull() as? X509Certificate
-      requireNotNull(leaf) { "Missing tablet certificate" }.checkValidity()
-      chain.proceed(chain.request())
-    }
+
   }
   return builder.build()
 }
