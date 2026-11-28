@@ -31,7 +31,7 @@ jobs:
       - run: npm test
         working-directory: jarvis-calls/server
       - run: node --check jarvis-calls/plugin/index.mjs
-      - run: bash -n jarvis-calls/scripts/install-termux.sh jarvis-calls/scripts/create-certificate.sh
+      - run: bash -n jarvis-calls/scripts/install-termux.sh jarvis-calls/scripts/create-certificate.sh jarvis-calls/scripts/install-termux-service.sh
   android:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     needs: service

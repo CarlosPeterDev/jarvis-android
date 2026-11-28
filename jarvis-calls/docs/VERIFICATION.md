@@ -6,7 +6,7 @@ reported separately. Tests below never use synthetic audio as proof of an AI cal
 
 ## Automated evidence
 
-- `node --test jarvis-calls/server/test/*.test.mjs`: four passing tests, roughly
+- `node --test jarvis-calls/server/test/*.test.mjs`: five passing tests, roughly
   two seconds on the tablet. Real HTTP/WebSocket boundaries cover authentication,
   one-time/expired pairing, credential expiration, quiet hours, duplicate outgoing
   requests/invitations, rejection of pre-answer audio, answer/decline/missed,
@@ -23,10 +23,25 @@ reported separately. Tests below never use synthetic audio as proof of an AI cal
   real agent request did not complete within 150 seconds. Logs matched that
   test session to DNS failures and included rate-limit entries. No LLM response,
   tool execution, approval flow or spoken conversation is claimed verified.
-- GitHub Actions service job passed. Android setup now installs the actual
-  published `android-37.0` package. Formatting passed; the first Kotlin compile
-  found a ScrollView property error, corrected in the next commit. Final Android
-  build/unit/lint/release results remain pending until a successful exact-head run.
+- GitHub Actions service job passed. Android setup uses the published
+  `android-37.0` package. Android compilation and lint passed on commit
+  83949e596749df51c757d92b47e6c14e463d3ef8. That run completed 3,854 unit tests:
+  3,853 passed and one new call TLS test failed. The failure was a missing
+  post-handshake certificate view on an otherwise accepted pinned connection.
+  Certificate expiry now runs inside the existing upstream trust verifier;
+  an additional expired-certificate test was added. The exact-head Actions run
+  must pass before building and publishing artifacts. No local Android build
+  or dependency download is required on the tablet.
+- The installed plugin is enabled and its `call_user` contract appears in the
+  running Gateway tool catalog. The native `tools.invoke` path refused a test
+  without owner/internal-turn authority, as designed; no authority was forged.
+  Actual model-selected tool execution remains unverified.
+- Gateway health reported Telegram running and Composio loaded. Model, speech,
+  Telegram and Composio settings were compared and preserved. These health
+  checks do not substitute for a live Telegram voice or Composio operation.
+- The tablet's Tailscale interface was absent on November 28. The companion
+  retains its private bind address and backs off on startup failure; it does not
+  fall back to a public/wildcard listener.
 - Production signing secrets are absent. A production-signed release is blocked.
   Debug prereleases must remain clearly labeled and must not be marked Latest.
 - Samsung A23/Android 14 was reached through authorized wireless ADB pairing.

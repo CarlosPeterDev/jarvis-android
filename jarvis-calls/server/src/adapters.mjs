@@ -57,7 +57,7 @@ export class LocalAdapters {
       if (!reply.trim()) throw new Error('Agent returned no spoken text');
       progress('synthesizing'); started = performance.now();
       // The existing local adapter handles its own normalization and engine limits.
-      await execute(config.python || 'python3', [config.voiceAdapter, 'tts', '--text', reply.slice(0, 12_000), '--output', output], { signal, timeout: 150_000 });
+      await execute(config.python || 'python3', [config.voiceAdapter, 'tts', '--text=' + reply.slice(0, 12_000), '--output', output], { signal, timeout: 150_000 });
       timings.ttsMs = performance.now() - started;
       const bytes = await readFile(output);
       if (bytes.length > 4_000_000) throw new Error('Synthesized audio exceeds limit');

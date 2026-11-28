@@ -79,5 +79,4 @@ class CallTlsTest {
       assertEquals(0, server.requestCount)
     }
   }
-
 }

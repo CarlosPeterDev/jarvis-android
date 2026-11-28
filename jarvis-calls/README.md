@@ -59,7 +59,11 @@ separately authenticated control API on **127.0.0.1 only** (default 19191).
 Never forward either port through a public router. No Tailscale API key is used.
 For unattended use, use an existing Termux service supervisor or a dedicated
 Termux:Boot script invoking that same command after its prerequisites are ready.
-No autostart hook is installed automatically. A Termux wake lock and battery
+For an existing Termux:services installation, the optional
+`bash jarvis-calls/scripts/install-termux-service.sh` adds only a Jarvis supervisor
+and private logs. It refuses an existing service and backs off after failed
+startup, such as an absent Tailscale interface. No existing OpenClaw supervisor
+is replaced. No Termux:Boot hook is installed automatically. A wake lock and battery
 exemption can help, but Android can still stop Termux or Tailscale.
 
 ## Phone pairing and use

@@ -18,7 +18,12 @@ cat > "$staging/log/run" <<'RUN'
 #!/data/data/com.termux/files/usr/bin/bash
 exec svlogd -tt "$HOME/.local/state/jarvis-calls/log"
 RUN
-chmod 700 "$staging/run" "$staging/log/run"
+cat > "$staging/finish" <<'RUN'
+#!/data/data/com.termux/files/usr/bin/bash
+# A missing Tailscale interface should not cause a rapid restart/log loop.
+if [[ "${1:-0}" != 0 ]]; then sleep 30; fi
+RUN
+chmod 700 "$staging/run" "$staging/log/run" "$staging/finish"
 mv "$staging" "$service_root"
 for attempt in {1..10}; do
   [[ -p "$service_root/supervise/ok" ]] && break
