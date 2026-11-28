@@ -1,0 +1,182 @@
+name: Jarvis Calls
+on:
+  push:
+    branches: [feat/jarvis-calls]
+    tags: ['jarvis-v*']
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ['apps/android/**', 'jarvis-calls/**', '.github/workflows/jarvis-calls.yml']
+  workflow_dispatch:
+    inputs:
+      production:
+        description: Publish a production-signed release (requires signing secrets)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: jarvis-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  service:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.3'
+      - run: npm ci --ignore-scripts
+        working-directory: jarvis-calls/server
+      - run: npm test
+        working-directory: jarvis-calls/server
+      - run: node --check jarvis-calls/plugin/index.mjs
+      - run: bash -n jarvis-calls/scripts/install-termux.sh jarvis-calls/scripts/create-certificate.sh jarvis-calls/scripts/install-termux-service.sh jarvis-calls/scripts/android-smoke.sh
+  android:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: service
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: true
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+      PRODUCTION: ${{ startsWith(github.ref, 'refs/tags/jarvis-v') || inputs.production == true }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.3'
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare persistent release signing
+        if: env.PRODUCTION == 'true'
+        env:
+          KEYSTORE: ${{ secrets.JARVIS_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.JARVIS_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.JARVIS_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.JARVIS_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo 'Production signing secrets are required'; exit 1; }
+          umask 077
+          printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/jarvis-release.jks"
+          {
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_STORE_FILE=%s\n' "$RUNNER_TEMP/jarvis-release.jks"
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_STORE_PASSWORD=%s\n' "$STORE_PASSWORD"
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_KEY_ALIAS=%s\n' "$KEY_ALIAS"
+            printf 'ORG_GRADLE_PROJECT_OPENCLAW_ANDROID_KEY_PASSWORD=%s\n' "$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+      - name: Check and test Android
+        working-directory: apps/android
+        run: ./gradlew :app:ktlintCheck :app:lintThirdPartyDebug :app:testThirdPartyDebugUnitTest -POPENCLAW_ANDROID_VERSION_NAME=0.1.${{ github.run_number }} -POPENCLAW_ANDROID_VERSION_CODE=${{ github.run_number }}
+      - name: Build APK and AAB
+        working-directory: apps/android
+        run: |
+          variant=Debug
+          if [ "$PRODUCTION" = true ]; then variant=Release; fi
+          ./gradlew ":app:assembleThirdParty$variant" ":app:bundleThirdParty$variant" -POPENCLAW_ANDROID_VERSION_NAME=0.1.${{ github.run_number }} -POPENCLAW_ANDROID_VERSION_CODE=${{ github.run_number }}
+      - name: Validate independent outputs
+        run: |
+          mkdir -p jarvis-artifacts
+          variant=debug
+          label=-debug
+          expected=ai.jarvis.calls.debug
+          if [ "$PRODUCTION" = true ]; then variant=release; label=; expected=ai.jarvis.calls; fi
+          apk=$(find apps/android/app/build/outputs/apk/thirdParty/$variant -name '*.apk' -print -quit)
+          aab=$(find apps/android/app/build/outputs/bundle/thirdParty${variant^} -name '*.aab' -print -quit)
+          test -s "$apk" && test -s "$aab"
+          aapt=$(find "$ANDROID_HOME/build-tools" -name aapt -print | sort -V | tail -1)
+          "$aapt" dump badging "$apk" | tee jarvis-artifacts/package-metadata.txt
+          "$aapt" dump badging "$apk" | grep "package: name='$expected'"
+          "$aapt" dump badging "$apk" | grep "sdkVersion:'31'"
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -print | sort -V | tail -1)
+          "$apksigner" verify --verbose "$apk"
+          jarsigner -verify "$aab" | tee jarvis-artifacts/bundle-signature.txt
+          grep -q 'jar verified' jarvis-artifacts/bundle-signature.txt
+          cp "$apk" "jarvis-artifacts/Jarvis$label.apk"
+          cp "$aab" "jarvis-artifacts/Jarvis$label.aab"
+          (cd jarvis-artifacts && sha256sum *.apk *.aab > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-build-${{ github.run_number }}
+          path: jarvis-artifacts/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-test-reports-${{ github.run_number }}
+          path: |
+            apps/android/app/build/reports/
+            apps/android/app/build/test-results/
+
+  smoke:
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PRODUCTION: ${{ startsWith(github.ref, 'refs/tags/jarvis-v') || inputs.production == true }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: jarvis-calls/scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: jarvis-build-${{ github.run_number }}
+          path: jarvis-artifacts
+      - name: Enable runner virtualization
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Install and launch on Android 14
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: '34'
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 2048M
+          disable-animations: true
+          script: bash jarvis-calls/scripts/android-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-install-smoke-${{ github.run_number }}
+          path: jarvis-smoke/
+
+  publish:
+    needs: smoke
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PRODUCTION: ${{ startsWith(github.ref, 'refs/tags/jarvis-v') || inputs.production == true }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: jarvis-build-${{ github.run_number }}
+          path: jarvis-artifacts
+      - name: Publish separate debug testing assets
+        if: env.PRODUCTION != 'true' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create --repo "$GITHUB_REPOSITORY" "jarvis-debug-0.1.${{ github.run_number }}" jarvis-artifacts/Jarvis-debug.apk jarvis-artifacts/Jarvis-debug.aab jarvis-artifacts/SHA256SUMS --target "$GITHUB_SHA" --title "Jarvis debug testing 0.1.${{ github.run_number }}" --notes 'Debug-signed test build. Incoming calls, microphone, routing and locked-screen behavior require physical-device verification. Production signing is not configured. See jarvis-calls/docs/VERIFICATION.md.' --prerelease --latest=false
+      - name: Publish separate production assets
+        if: env.PRODUCTION == 'true' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="jarvis-v0.1.${{ github.run_number }}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then tag="${GITHUB_REF#refs/tags/}"; fi
+          gh release create --repo "$GITHUB_REPOSITORY" "$tag" jarvis-artifacts/Jarvis.apk jarvis-artifacts/Jarvis.aab jarvis-artifacts/SHA256SUMS --target "$GITHUB_SHA" --title "Jarvis 0.1.${{ github.run_number }}" --notes 'Production-signed artifacts. See jarvis-calls/docs/VERIFICATION.md for verified and device-dependent behavior.' --latest

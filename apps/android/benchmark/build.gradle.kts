@@ -6,7 +6,9 @@ plugins {
 android {
   namespace = "ai.openclaw.app.benchmark"
   // Match the target app while targetSdk remains an independent behavior opt-in.
-  compileSdk = 37
+  compileSdk {
+    version = release(37) { minorApiLevel = 0 }
+  }
 
   defaultConfig {
     minSdk = 31
