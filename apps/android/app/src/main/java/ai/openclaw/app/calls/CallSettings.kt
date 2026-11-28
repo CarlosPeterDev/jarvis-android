@@ -48,7 +48,6 @@ internal fun createCallHttpClient(fingerprint: String): OkHttpClient {
   if (fingerprint.isNotEmpty()) {
     val tls = requireNotNull(buildGatewayTlsConfig(GatewayTlsParams(fingerprint, enforceCertificateValidity = true)))
     builder.sslSocketFactory(tls.sslSocketFactory, tls.trustManager)
-
   }
   return builder.build()
 }
